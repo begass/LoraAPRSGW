@@ -1,0 +1,43 @@
+
+sehen welche Treiber geladen sind 
+lsmod  
+--> 8192cu                560049  0 
+    cfg80211              428871  1 8192cu
+ ??
+
+nach Netz suchen: 
+sudo iwlist wlan0 scan
+
+
+
+Schlafmodus abschalten: 
+sudo nano /etc/modprobe.d/8192cu.conf
+    options 8192cu rtw_power_mgnt=0 rtw_enusbss=0
+Prüfen ob es funktioniert hat
+sudo iwconfig wlan0 power off 
+oder
+sudo iwconfig wlan0 
+
+in sudo nano /etc/network/interfaces:
+auto wlan
+allow-hotplug wlan0
+iface wlan0 inet manual
+wpa-ap-scan 1
+wpa-scan-ssid 1
+wpa-ssid "APA_Home"
+wpa-psk "Isxxxxxxxxxxx02"
+#wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+
+
+
+
+in sudo nano /etc/wpa_supplicant/wpa_supplicant.conf
+
+country=DE
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+network{
+ssid="APA_Home"
+psk"myPassword"
+}
+
