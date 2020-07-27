@@ -1,0 +1,104 @@
+Msg send from GW:
+withou ACK
+<?<1>OE1KEB>LORA::IOT4PI3  :Test13<\n>
+<?<1>OE1KEB>LORA::IOT4PI3  :Test13<\n>
+<�OE1KEB>LORA::IOT4PI3  :Test13
+with ACK
+=�OE1KEB>LORA::IOT4PI3  :Test15{1
+ACK
+<�IOT4PI3>APRS::OE1KEB   :ack1
+
+
+
+
+
+3 Byte Header 
+LTXPacketTpye   0x3c --> Packet ohne ACK  | 0x3D  --> Packet with ACK 
+LTXDestination  0xFF
+LTXSource       0x01 
+
+Senden auf 433,650 MHz
+Empfang auf 434,050 MHz
+
+###############################################
+Vorbemerkung:
+Derzeit senden unsere Sender einen 3 Byte langen Header wobei sie wie folgt aussehen:
+3 Byte Header 
+LTXPacketTpye   = 0x3c 
+LTXDestination   = 0xFF
+LTXSource           =0x01
+ 
+Alle Geräte senden und erwarten kein ACK. Kein Gerät empfängt derzeit.
+(Gleiches mit umgekehrten „Vorzeichen“ gilt für den Gateway)
+ 
+Hier die Erweiterung:
+Wenn ein Gerät in der Lage ist auch Nachrichten zu empfangen und auch anzuzeigen kann es Datenpakete mit LTXPcketType = 0x3D versenden. Dies kennzeichnet, das der Node auf ein ACK vom Gateway  wartet. 
+Der Gateway sendet bei Empfang ein ACK oder eine für den Node bestimmte Nachricht.
+ 
+Der Ablauf beim Node: 
+1. Node sendet seine Nachricht auf den gewohnten 433,650 MHz
+2. Nach Versenden der Nachricht schaltet der Node nach 1 Sekunde auf die Empfangsfrequenz (433,850 MHz ?)
+3. Nach einem Timeout von 2 Sekunden hat der Node entweder ein ACK bzw. Nachricht erhalten oder 
+er wechselt wieder auf Sendefrequenz (433,650 MHz) und verschickt die Nachricht nochmals.
+Die maximale Anzahl an Versuchen würde ich mit 3x beschränken.
+ 
+Der Ablauf beim Gateway:
+1. Der Gateway empfängt standardmäßig die Nachrichten 433,650 und sendet diese an APRS.
+Des Weiteren empfängt Gateway auch Nachrichten aus dem APRS Netz und hält sie für die Nodes für maximal 60 Minuten bereit. 
+2. Empfängt der Gateway nun eine Nachricht von einem Node für den eine Nachricht bereitliegt sendet er diese an ihn, eine Sekunde nachdem er die Nachricht empfangen hat (433,850 MHz ?). 
+Sollte die Nachricht selbst ein ACK verlangen, hält der Gateway die Nachricht in einem Zwischenspeicher und wartet maximal 10 Sekunden auf ein ACK vom Node. Sollte der Gateway kein ACK innerhalb der 10 Sekunden erhalten haben sendet er die Nachricht nachmals und das ganze geht wieder von vorne los.  Jedoch schlage ich vor, dass es maximal 2 Versuche gibt. 
+
+_-------------------------------------------
+TextMessage:
+
+--------------------------------------------------------------------
+
+Telnet Session: 
+telnet igates.aprs.fi 14580
+telnet euro.aprs2.net 14580
+user IOT4PI5 pass 3024 vers lora
+
+OE1KEB>APRS::IOT4PI3  :Hallo 888
+OE1KEB>APRS::IOT4PI3  :ein test2{2
+user DB1NTO-12 pass xxxxx vers Picoversion 0.1
+DB1NTO-12>APRS::DB1NTO-9 :Test{1
+
+IOT4PI3>APRS::OE1KEB-10:Bitte an IOT4PI3 senden
+
+Debug Print Python:
+Call OE1KEB
+message from THIRD
+message to IOT4PI3  
+message : Hallo 888
+
+Debug Print C++:
+without Ack
+Received message = M|OE1KEB|THIRD|IOT4PI3  |Hallo 888
+Received from UDP M|OE1KEB|THIRD|IOT4PI3  |Hallo 888
+
+with Ack
+Received message = M|OE1KEB|THIRD|IOT4PI3  |Hallo 888|A|003
+
+///////////////////////////////
+Ack Format:
+:OE1KEB   :ack003
+:KB2ICI-14:ack003
+
+IoT4Pi3>APRS::OE1KEB   :ack1
+///////////////////////////////////
+REJ Format 
+
+IOT4PI3>APRS,qAO,IoT4Pi5::OE1KEB   :rej1
+
+//////////////////////////////////
+M|OE1KEB-10|T2UKRAINE|IOT4PI3  |Mahlzeit; -)|A|1
+OE1KEB-10>APRS::IOT4PI3  :test Nummer 4{3
+OE1KEB-9>APRS::IOT4PI3  :KANN\EUCH GUT VERFOLGEN KARL{5
+
+OE1KEB-9>APK001,WIDE1-1,WIDE2-2,qAR,OE1SSU-10,OE1SSU,T2CZECH::IOT4PI3  :KANN\EUCH GUT VERFOLGEN KARL{5
+OE1KEB-9>APK001,WIDE1-1,WIDE2-2,qAR,OE1SSU-10,OE1SSU,T2CZECH::IOT4PI3  :KANN\EUCH GUT VERFOLGEN KARL{3
+OE1KEB-9>APK001,WIDE1-1,WIDE2-2,qAR,OE1SSU-10,OE1SSU,T2CZECH::IOT4PI3  :KANN\EUCH GUT VERFOLGEN KARL{5
+
+
+
+

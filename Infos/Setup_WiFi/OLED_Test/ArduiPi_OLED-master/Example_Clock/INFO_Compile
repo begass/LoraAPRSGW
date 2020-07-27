@@ -1,0 +1,1 @@
+gcc -Ofast -mfpu=vfp -mfloat-abi=hard -march=armv6zk -mtune=arm1176jzf-s -Wall  -lssd1306 -lm clock.cpp -o clock
