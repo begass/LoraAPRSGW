@@ -171,7 +171,7 @@ def auth_packet():
     return "user %s pass %s vers %s filter %s\r\n" % (APRS_IS_CALL, APRS_IS_PASSCODE, Version, FILTER)
 
 def position_packet():
-    return ("%s>APOTW1,TCPIP*:!%sL%s&%s/%s\r\n" % (APRS_IS_CALL, LATITUDE, LONGITUDE, PHG, INFO+" "+TempHumPress))
+    return ("%s>APOTW1,TCPIP*:!%sI%s&%s/%s\r\n" % (APRS_IS_CALL, LATITUDE, LONGITUDE, PHG, INFO+" "+TempHumPress))
 
 def send_packet(packet):
     global udp_sock, aprs_is_sock
