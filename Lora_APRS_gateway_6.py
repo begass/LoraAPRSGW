@@ -169,7 +169,7 @@ def auth_packet():
     global APRS_IS_PASSCODE
     global FILTER
     
-    return "user %s pass %s vers %s filter %s\r\n" % (APRS_IS_CALL, APRS_IS_PASSCODE, Version, FILTER)
+    return "user %s pass %s vers iot4pi-LoraAPRSGW 0.3 filter %s\r\n" % (APRS_IS_CALL, APRS_IS_PASSCODE, FILTER)
 
 def position_packet():
     return ("%s>APOTW1,TCPIP*:!%sI%s&%s/%s\r\n" % (APRS_IS_CALL, LATITUDE, LONGITUDE, PHG, INFO+" "+TempHumPress))
