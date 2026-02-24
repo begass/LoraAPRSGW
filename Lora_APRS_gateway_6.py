@@ -202,6 +202,21 @@ def handle_aprs_message(reply):
 
         messageSEND=Call+'>LORA::'+To+':'+Text
 
+        # If message is addressed to this gateway, reject it
+        if To.strip().upper()==APRS_IS_CALL.upper():
+            print 'Message addressed to me, rejecting'
+            temp3=reply.rfind('{')
+            if temp3>0:
+                MesNo=reply[temp3+1:]
+                print 'message # ' + MesNo
+                CallPad=APRS_IS_CALL.upper()
+                while(len(CallPad)<9):
+                    CallPad+=' '
+                resp=APRS_IS_CALL.upper()+'>APRS::'+Call.upper()+':rej'+MesNo
+                print 'send to APRS Server ',resp
+                send_packet(replace_path(resp))
+            return
+
         temp3=reply.rfind('{')
         MesNo=''
         if temp3>0:
@@ -214,30 +229,13 @@ def handle_aprs_message(reply):
             message=message+'|A|'+MesNo
             ack_message = '1'+message
             messageSEND='1'+messageSEND
-            if (TRANSMIT=="True"):
-                #udp_sock.sendto(ack_message+'\x00\r', addr)
-                udp_sock.sendto(messageSEND+'\x00\r', addr)
-                print 'send to c++ ',ack_message
-                print 'messageSEND =', messageSEND
-            elif (TRANSMIT=="False"):
-                print 'GW is not alowed to transmit !'
-                #sending reject to APRS Server
-                #IoT4Pi3>APRS::OE1KEB   :rej1
-                while(len(Call)<9):
-                    Call+=' '
-                resp=To.strip().upper()+'>APRS::'+Call.upper()+':rej'+MesNo
-                print 'send to APRS Server ',resp
-                send_packet(replace_path(resp))
 
-        else:
-            if (TRANSMIT=="True"):
-                #udp_sock.sendto(message+'\x00\r', addr)
-                udp_sock.sendto(messageSEND+'\x00\r', addr)
-                print 'send to c++ ',message
-                print 'messageSEND =', messageSEND
-
-            elif (TRANSMIT=="False"):
-                print 'GW is not alowed to send !'
+        if (TRANSMIT=="True"):
+            udp_sock.sendto(messageSEND+'\x00\r', addr)
+            print 'send to c++ ',message
+            print 'messageSEND =', messageSEND
+        elif (TRANSMIT=="False"):
+            print 'GW is not alowed to transmit !'
 
 def process_packets():
     global udp_sock, aprs_is_sock,numPackets,LTime,addr
