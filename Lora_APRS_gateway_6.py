@@ -180,6 +180,22 @@ def send_packet(packet):
     message = ("%s\r\n" % (packet))
     aprs_is_sock.sendall(message)
 
+def third_party_format(reply):
+    """Format packet to third party format in the TX igate. This is very important,
+    it prevents other igates from (1) forwarding the same packet back from RF
+    to APRS-IS, and (2) assuming that the original sender of the packet is reachable
+    via RF - this would trigger other TX igates to forward messages destined to
+    this station to RF as well. These would cause RF - APRS-IS - RF loops.
+    """
+    
+    # Parse FROMCALL>TOCALL and data from APRS-IS packet
+    # Input format: FROMCALL>TOCALL,path,path:data
+    # Output format: APRS_IS_CALL>APRS:}FROMCALL>TOCALL,TCPIP,APRS_IS_CALL*:data
+    header, data = reply.split(':', 1)
+    fromcall = header.split('>')[0]
+    tocall = header.split('>')[1].split(',')[0]
+    return APRS_IS_CALL+'>LORA:}'+fromcall+'>'+tocall+',TCPIP,'+APRS_IS_CALL+'*:'+data
+
 def handle_aprs_message(reply):
     global addr
     print 'Message Type received :\n'
@@ -200,7 +216,7 @@ def handle_aprs_message(reply):
 
         message='M|'+Call+'|'+Via +'|'+To+'|'+Text
 
-        messageSEND=Call+'>LORA::'+To+':'+Text
+        messageSEND=third_party_format(reply)
 
         # If message is addressed to this gateway, reject it
         if To.strip().upper()==APRS_IS_CALL.upper():
