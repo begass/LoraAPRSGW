@@ -49,6 +49,7 @@ REPLACE_PATH=False		# If true, add ",qAR,APRS_IS_CALL" to path
 VERSION=""
 udp_sock = None
 aprs_is_sock = None
+aprs_is_buf = ""
 
 #counter of received packets
 numPackets=0
@@ -266,20 +267,22 @@ def process_packets():
 
 	    elif sock == aprs_is_sock:
                 #Meassages from APRS Server
-                reply = aprs_is_sock.recv(4096)
-                #ReceivedStr=aprs_is_sock.recv(1024)
-                if not reply.startswith('#'):
-#	            print "<-"+ reply.strip()
-#                else:
-                    #######################################
-                    ## Rework with regular expresions !!!!!!!
-                    #######################################
-                    #Proof for Message Type  :123456789:
-                    if reply.rfind(':') and reply[reply.rfind(':')-10:reply.rfind(':')-9]==':':
-                        handle_aprs_message(reply)
+                global aprs_is_buf
+                data = aprs_is_sock.recv(4096)
+                if not data:
+                    continue
+                aprs_is_buf += data
+                while "\r\n" in aprs_is_buf:
+                    reply, aprs_is_buf = aprs_is_buf.split("\r\n", 1)
+                    if not reply.startswith('#'):
+                        #######################################
+                        ## Rework with regular expresions !!!!!!!
+                        #######################################
+                        #Proof for Message Type  :123456789:
+                        if reply.rfind(':') and reply[reply.rfind(':')-10:reply.rfind(':')-9]==':':
+                            handle_aprs_message(reply)
 
-                LTime=time.time()
-                #print  reply
+                    LTime=time.time()
 
 
 def replace_path(packet):
