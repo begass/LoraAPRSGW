@@ -172,7 +172,7 @@ def auth_packet():
     return "user %s pass %s vers iot4pi-LoraAPRSGW 0.3 filter %s\r\n" % (APRS_IS_CALL, APRS_IS_PASSCODE, FILTER)
 
 def position_packet():
-    return ("%s>APOTW1,TCPIP*:!%sI%s&%s/%s\r\n" % (APRS_IS_CALL, LATITUDE, LONGITUDE, PHG, INFO+" "+TempHumPress))
+    return ("%s>APZ4PI,TCPIP*:!%sI%s&%s/%s\r\n" % (APRS_IS_CALL, LATITUDE, LONGITUDE, PHG, INFO+" "+TempHumPress))
 
 def send_packet(packet):
     global udp_sock, aprs_is_sock
