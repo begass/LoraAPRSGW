@@ -179,8 +179,67 @@ def send_packet(packet):
     message = ("%s\r\n" % (packet))
     aprs_is_sock.sendall(message)
 
+def handle_aprs_message(reply):
+    global addr
+    print 'Message Type received :\n'
+
+    print reply
+    temp1=reply.find('>')
+    Call=reply[0:temp1]
+    print 'Call ' + Call
+    temp2=reply.find('::')
+    if temp2:
+        Via = reply[reply.rfind(',')+1:reply.find('::')]
+        print 'message from ' + Via
+        To=reply[temp2+2:temp2+2+9]
+        print 'message to ' + To
+        Text=reply[temp2+2+9+1:]
+        Text=Text.rstrip()
+        print 'message : ' + Text
+
+        message='M|'+Call+'|'+Via +'|'+To+'|'+Text
+
+        messageSEND=Call+'>LORA::'+To+':'+Text
+
+        temp3=reply.rfind('{')
+        MesNo=''
+        if temp3>0:
+            print 'ACK requested !'
+
+            MesNo=reply[temp3+1:]
+            print 'message # ' + MesNo
+            temp3=message.rfind('{')
+            message=message[:temp3]
+            message=message+'|A|'+MesNo
+            ack_message = '1'+message
+            messageSEND='1'+messageSEND
+            if (TRANSMIT=="True"):
+                #udp_sock.sendto(ack_message+'\x00\r', addr)
+                udp_sock.sendto(messageSEND+'\x00\r', addr)
+                print 'send to c++ ',ack_message
+                print 'messageSEND =', messageSEND
+            elif (TRANSMIT=="False"):
+                print 'GW is not alowed to transmit !'
+                #sending reject to APRS Server
+                #IoT4Pi3>APRS::OE1KEB   :rej1
+                while(len(Call)<9):
+                    Call+=' '
+                resp=To.strip().upper()+'>APRS::'+Call.upper()+':rej'+MesNo
+                print 'send to APRS Server ',resp
+                send_packet(replace_path(resp))
+
+        else:
+            if (TRANSMIT=="True"):
+                #udp_sock.sendto(message+'\x00\r', addr)
+                udp_sock.sendto(messageSEND+'\x00\r', addr)
+                print 'send to c++ ',message
+                print 'messageSEND =', messageSEND
+
+            elif (TRANSMIT=="False"):
+                print 'GW is not alowed to send !'
+
 def process_packets():
-    global udp_sock, aprs_is_sock,numPackets,LTime,addr 
+    global udp_sock, aprs_is_sock,numPackets,LTime,addr
     global TempHumPress
     # Await a read event for 5 seconds
     rlist, wlist, elist = select.select([udp_sock, aprs_is_sock], [], [], 5)
@@ -212,69 +271,13 @@ def process_packets():
                 if not reply.startswith('#'):
 #	            print "<-"+ reply.strip()
 #                else:
-                    temp1=reply.find('>')
                     #######################################
                     ## Rework with regular expresions !!!!!!!
                     #######################################
                     #Proof for Message Type  :123456789:
-                    #if temp1:
                     if reply.rfind(':') and reply[reply.rfind(':')-10:reply.rfind(':')-9]==':':
-                        print 'Message Type received :\n'
-                        
-                        print reply
-                        Call=reply[0:temp1]
-                        print 'Call ' + Call
-                        temp2=reply.find('::')
-                        if temp2:
-                            Via = reply[reply.rfind(',')+1:reply.find('::')]
-                            print 'message from ' + Via
-                            To=reply[temp2+2:temp2+2+9]
-                            print 'message to ' + To
-                            Text=reply[temp2+2+9+1:]
-                            Text=Text.rstrip()
-                            print 'message : ' + Text
+                        handle_aprs_message(reply)
 
-                            message='M|'+Call+'|'+Via +'|'+To+'|'+Text
-                            
-                            messageSEND=Call+'>LORA::'+To+':'+Text
-                            
-                            temp3=reply.rfind('{')
-                            MesNo=''
-                            if temp3>0:
-                                print 'ACK requested !'
-                                
-                                MesNo=reply[temp3+1:]
-                                print 'message # ' + MesNo
-                                temp3=message.rfind('{')
-                                message=message[:temp3]
-                                message=message+'|A|'+MesNo
-                                ack_message = '1'+message
-                                messageSEND='1'+messageSEND
-                                if (TRANSMIT=="True"):
-                                    #udp_sock.sendto(ack_message+'\x00\r', addr)
-                                    udp_sock.sendto(messageSEND+'\x00\r', addr)
-                                    print 'send to c++ ',ack_message
-                                    print 'messageSEND =', messageSEND
-                                elif (TRANSMIT=="False"):
-                                    print 'GW is not alowed to transmit !'
-                                    #sending reject to APRS Server
-                                    #IoT4Pi3>APRS::OE1KEB   :rej1
-                                    while(len(Call)<9):
-                                        Call+=' '
-                                    resp=To.strip().upper()+'>APRS::'+Call.upper()+':rej'+MesNo
-                                    print 'send to APRS Server ',resp
-                                    send_packet(replace_path(resp))
-
-                            else:
-                                if (TRANSMIT=="True"):
-                                    #udp_sock.sendto(message+'\x00\r', addr)
-                                    udp_sock.sendto(messageSEND+'\x00\r', addr)
-                                    print 'send to c++ ',message
-                                    print 'messageSEND =', messageSEND
-                                    
-                                elif (TRANSMIT=="False"):
-                                    print 'GW is not alowed to send !'
-                            
                 LTime=time.time()
                 #print  reply
 
