@@ -49,6 +49,7 @@ REPLACE_PATH=False		# If true, add ",qAR,APRS_IS_CALL" to path
 VERSION=""
 udp_sock = None
 aprs_is_sock = None
+aprs_is_buf = ""
 
 #counter of received packets
 numPackets=0
@@ -168,10 +169,10 @@ def auth_packet():
     global APRS_IS_PASSCODE
     global FILTER
     
-    return "user %s pass %s vers %s filter %s\r\n" % (APRS_IS_CALL, APRS_IS_PASSCODE, Version, FILTER)
+    return "user %s pass %s vers iot4pi-LoraAPRSGW 0.3 filter %s\r\n" % (APRS_IS_CALL, APRS_IS_PASSCODE, FILTER)
 
 def position_packet():
-    return ("%s>APOTW1,TCPIP*:!%sI%s&%s/%s\r\n" % (APRS_IS_CALL, LATITUDE, LONGITUDE, PHG, INFO+" "+TempHumPress))
+    return ("%s>APZ4PI,TCPIP*:!%sI%s&%s/%s\r\n" % (APRS_IS_CALL, LATITUDE, LONGITUDE, PHG, INFO+" "+TempHumPress))
 
 def send_packet(packet):
     global udp_sock, aprs_is_sock
@@ -179,8 +180,81 @@ def send_packet(packet):
     message = ("%s\r\n" % (packet))
     aprs_is_sock.sendall(message)
 
+def third_party_format(reply):
+    """Format packet to third party format in the TX igate. This is very important,
+    it prevents other igates from (1) forwarding the same packet back from RF
+    to APRS-IS, and (2) assuming that the original sender of the packet is reachable
+    via RF - this would trigger other TX igates to forward messages destined to
+    this station to RF as well. These would cause RF - APRS-IS - RF loops.
+    """
+    
+    # Parse FROMCALL>TOCALL and data from APRS-IS packet
+    # Input format: FROMCALL>TOCALL,path,path:data
+    # Output format: APRS_IS_CALL>APRS:}FROMCALL>TOCALL,TCPIP,APRS_IS_CALL*:data
+    header, data = reply.split(':', 1)
+    fromcall = header.split('>')[0]
+    tocall = header.split('>')[1].split(',')[0]
+    return APRS_IS_CALL+'>LORA:}'+fromcall+'>'+tocall+',TCPIP,'+APRS_IS_CALL+'*:'+data
+
+def handle_aprs_message(reply):
+    global addr
+    print 'Message Type received :\n'
+
+    print reply
+    temp1=reply.find('>')
+    Call=reply[0:temp1]
+    print 'Call ' + Call
+    temp2=reply.find('::')
+    if temp2:
+        Via = reply[reply.rfind(',')+1:reply.find('::')]
+        print 'message from ' + Via
+        To=reply[temp2+2:temp2+2+9]
+        print 'message to ' + To
+        Text=reply[temp2+2+9+1:]
+        Text=Text.rstrip()
+        print 'message : ' + Text
+
+        message='M|'+Call+'|'+Via +'|'+To+'|'+Text
+
+        messageSEND=third_party_format(reply)
+
+        # If message is addressed to this gateway, reject it
+        if To.strip().upper()==APRS_IS_CALL.upper():
+            print 'Message addressed to me, rejecting'
+            temp3=reply.rfind('{')
+            if temp3>0:
+                MesNo=reply[temp3+1:]
+                print 'message # ' + MesNo
+                CallPad=APRS_IS_CALL.upper()
+                while(len(CallPad)<9):
+                    CallPad+=' '
+                resp=APRS_IS_CALL.upper()+'>APRS::'+Call.upper()+':rej'+MesNo
+                print 'send to APRS Server ',resp
+                send_packet(replace_path(resp))
+            return
+
+        temp3=reply.rfind('{')
+        MesNo=''
+        if temp3>0:
+            print 'ACK requested !'
+
+            MesNo=reply[temp3+1:]
+            print 'message # ' + MesNo
+            temp3=message.rfind('{')
+            message=message[:temp3]
+            message=message+'|A|'+MesNo
+            ack_message = '1'+message
+            messageSEND='1'+messageSEND
+
+        if (TRANSMIT=="True"):
+            udp_sock.sendto(messageSEND+'\x00\r', addr)
+            print 'send to c++ ',message
+            print 'messageSEND =', messageSEND
+        elif (TRANSMIT=="False"):
+            print 'GW is not alowed to transmit !'
+
 def process_packets():
-    global udp_sock, aprs_is_sock,numPackets,LTime,addr 
+    global udp_sock, aprs_is_sock,numPackets,LTime,addr
     global TempHumPress
     # Await a read event for 5 seconds
     rlist, wlist, elist = select.select([udp_sock, aprs_is_sock], [], [], 5)
@@ -207,76 +281,22 @@ def process_packets():
 
 	    elif sock == aprs_is_sock:
                 #Meassages from APRS Server
-                reply = aprs_is_sock.recv(4096)
-                #ReceivedStr=aprs_is_sock.recv(1024)
-                if not reply.startswith('#'):
-#	            print "<-"+ reply.strip()
-#                else:
-                    temp1=reply.find('>')
-                    #######################################
-                    ## Rework with regular expresions !!!!!!!
-                    #######################################
-                    #Proof for Message Type  :123456789:
-                    #if temp1:
-                    if reply.rfind(':') and reply[reply.rfind(':')-10:reply.rfind(':')-9]==':':
-                        print 'Message Type received :\n'
-                        
-                        print reply
-                        Call=reply[0:temp1]
-                        print 'Call ' + Call
-                        temp2=reply.find('::')
-                        if temp2:
-                            Via = reply[reply.rfind(',')+1:reply.find('::')]
-                            print 'message from ' + Via
-                            To=reply[temp2+2:temp2+2+9]
-                            print 'message to ' + To
-                            Text=reply[temp2+2+9+1:]
-                            Text=Text.rstrip()
-                            print 'message : ' + Text
+                global aprs_is_buf
+                data = aprs_is_sock.recv(4096)
+                if not data:
+                    continue
+                aprs_is_buf += data
+                while "\r\n" in aprs_is_buf:
+                    reply, aprs_is_buf = aprs_is_buf.split("\r\n", 1)
+                    if not reply.startswith('#'):
+                        #######################################
+                        ## Rework with regular expresions !!!!!!!
+                        #######################################
+                        #Proof for Message Type  :123456789:
+                        if reply.rfind(':') and reply[reply.rfind(':')-10:reply.rfind(':')-9]==':':
+                            handle_aprs_message(reply)
 
-                            message='M|'+Call+'|'+Via +'|'+To+'|'+Text
-                            
-                            messageSEND=Call+'>LORA::'+To+':'+Text
-                            
-                            temp3=reply.rfind('{')
-                            MesNo=''
-                            if temp3>0:
-                                print 'ACK requested !'
-                                
-                                MesNo=reply[temp3+1:]
-                                print 'message # ' + MesNo
-                                temp3=message.rfind('{')
-                                message=message[:temp3]
-                                message=message+'|A|'+MesNo
-                                ack_message = '1'+message
-                                messageSEND='1'+messageSEND
-                                if (TRANSMIT=="True"):
-                                    #udp_sock.sendto(ack_message+'\x00\r', addr)
-                                    udp_sock.sendto(messageSEND+'\x00\r', addr)
-                                    print 'send to c++ ',ack_message
-                                    print 'messageSEND =', messageSEND
-                                elif (TRANSMIT=="False"):
-                                    print 'GW is not alowed to transmit !'
-                                    #sending reject to APRS Server
-                                    #IoT4Pi3>APRS::OE1KEB   :rej1
-                                    while(len(Call)<9):
-                                        Call+=' '
-                                    resp=To.strip().upper()+'>APRS::'+Call.upper()+':rej'+MesNo
-                                    print 'send to APRS Server ',resp
-                                    send_packet(replace_path(resp))
-
-                            else:
-                                if (TRANSMIT=="True"):
-                                    #udp_sock.sendto(message+'\x00\r', addr)
-                                    udp_sock.sendto(messageSEND+'\x00\r', addr)
-                                    print 'send to c++ ',message
-                                    print 'messageSEND =', messageSEND
-                                    
-                                elif (TRANSMIT=="False"):
-                                    print 'GW is not alowed to send !'
-                            
-                LTime=time.time()
-                #print  reply
+                    LTime=time.time()
 
 
 def replace_path(packet):
